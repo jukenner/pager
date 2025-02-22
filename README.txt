@@ -7,13 +7,20 @@
        | |             __/ |            
        |_|            |___/             
 
+
 Pager is a single-header memory manager supporting both static and dynamic
 memory handling written in pure ANSI-C.
 
-General
+General Structure
 
     The handler consists of a memory bank representing the available memory pool
-    and the page map containing the states for all pages in the memory bank.
+    which is divided into pages and the page map containing the states for all
+    pages in the memory bank. Depending on the configuration of the handler the
+    memory bank and page map will either be allocated dynamically or both be
+    contained in the provided buffer. If the handler is configured as dynamic,
+    both the bank and map will scale to meet the needs of the user. In case of a
+    fixed configuration both the bank and map will not scale and the available
+    memory will be limited to the provided buffer.
 
 
 Memory Bank
@@ -50,7 +57,7 @@ Page Map
         10: Used, Continuation of a memory block
         11: Used, End of a memory block (Can be used by itself)
 
-    To create a single-page block can be created using just the "11" state.
+    A single-page block can be created using just the "11" state.
 
     The page map has the following structure:
 
@@ -74,3 +81,127 @@ Page Map
                         +-----+-----+-----+-----+-----+-----+-----+
         N-page block:   | ... |  01 |  10 |  10 | ... |  11 | ... |
                         +-----+-----+-----+-----+-----+-----+-----+
+
+Including the library
+
+    To include the library in a project, simply dowload the pager.h file and
+    include it. The header can be included as many times as necessary, but the
+    macro PG_IMPLEMENTATION has to be defined once. In case the standard
+    libraries need to be included, if for example the default allocator
+    functions are needed, the macro PG_STANDARD_LIBRARY has to be defined
+    once aswell.
+
+    This is an example of how to include the library:
+
+        ...
+        #define PG_IMPLEMENTATION 
+        #include "pager.h"
+        ...
+
+    If you want the default functionality use the following code:
+
+        ...
+        #define PG_IMPLEMENTATION
+        #define PG_STANDARD_LIBRARY
+        ...
+
+API functions
+
+    >> int pg_init_default(struct pg_handler *hdl)
+
+    Description:
+
+        Initialize the handler using the dynamic configuration with the the
+        default allocation functions(malloc, realloc, free). The memory bank and
+        page map will automatically be allocated. To use this function the macro
+        PG_STANDARD_LIB has to be defined beforehand.
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+
+    Returns:
+
+        The function return 0 on success or -1 if an error occurred.
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz)
+
+    Description:
+
+        Initialize the memory handler with a fixed memory buffer. Both the
+        memory bank and the page map will be contained in the provided buffer.
+        No additional memory will be allocated. Note that the provided memory
+        buffer may only be freed after the memory handler has been shutdown!
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+        @buf: Pointer to the memory buffer
+        @buf: The size of the memory buffer in bytes
+
+    Returns:
+
+        The function return 0 on success or -1 if an error occurred.
+
+    Example:
+
+        ...
+        struct pg_handler hdl;
+        unsigned char buffer[512];
+        pg_init_fixed(&hdl, buf, 512);
+        ...
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> int pg_init_custom(struct pg_handler *hdl, struct pg_functions fnc)
+
+    Description:
+
+        This function initializes the memory handler with a set of custom
+        allocation functions. These will be used to allocate memory for both the
+        memory bank and page map and scale both to meet the need of the user.
+        The three functions that have to be set are:
+
+            - void *alloc(int size)
+            - void *realloc(void *ptr, int size)
+            - void free(void *ptr)
+
+        Both alloc and realloc should either return a pointer for the requested
+        memory or NULL in case of failure.
+
+    Parameters:
+        
+        @hdl: Pointer to the memory handler struct
+        @fnc: A set of custom allocation functions
+
+    Returns:
+
+        The function return 0 on success or -1 if an error occurred
+
+    Example(using custom wrapper for the default allocator functions):
+
+        ...
+        void *cstm_alloc(int size) {
+            return malloc(size);
+        }
+
+        void *cstm_realloc(void *ptr, int size) {
+            return realloc(ptr, size);
+        }
+
+        void free(void *ptr) {
+            return free(ptr);
+        }
+        ...
+        struct pg_handler hdl;
+        struct pg_functions func;
+
+        func.alloc   = &cstm_alloc;
+        func.realloc = &cstm_realloc;
+        func.free    = &ctsm_free;
+
+        pg_init_custom(&hdl, func);
+        ...
+        
