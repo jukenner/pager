@@ -108,6 +108,12 @@ Including the library
 
 API functions
 
+    The following is an overview of all essential API functions provided by this
+    library. For actual demonstrations of the different features see the
+    examples in the folder labeled "demo".
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
     >> int pg_init_default(struct pg_handler *hdl)
 
     Description:
@@ -127,7 +133,7 @@ API functions
 
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-    >> int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz)
+    >> int pg_init_fixed(struct pg_handler *hdl, void *buf, int size)
 
     Description:
 
@@ -140,7 +146,7 @@ API functions
 
         @hdl: Pointer to the memory handler struct
         @buf: Pointer to the memory buffer
-        @buf: The size of the memory buffer in bytes
+        @size: The size of the memory buffer in bytes
 
     Returns:
 
@@ -284,3 +290,92 @@ API functions
         @hdl: Pointer to the memory handler struct
         @ptr: Pointer to the memory block to free
 
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_set(void *ptr, unsigned char val, int num)
+
+    Description:
+
+        Set the value of all bytes in a memory block.
+
+    Parameters:
+
+        @ptr: Pointer to a memory block
+        @val: The code to write to every byte
+        @num: The number of bytes to set in the memory block
+
+    Returns:
+
+        This function returns a pointer to the modified memory or NULL if an
+        error occurred.
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_copy(void *dst, void *src, int num)
+
+    Description:
+
+        Copy over bytes from the source to the destination. This function starts
+        at the provided pointers and copies byte by byte. So in case the source
+        and destination areas overlap, the source can potentially be overwritten
+        while currently copying from it. This can lead to loss of data. For this
+        reason, if the areas overlap it is recommended to use pg_move() instead.
+
+    Parameters:
+
+        @dst: Pointer to the address to copy to
+        @src: Pointer to the address to copy from
+        @num: The number of bytes to copy from the source to the destination
+
+    Returns:
+
+        This function will return a pointer to the destination area or NULL
+        if an error occurred.
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_move(void *dst, void *src, int num)
+
+    Description:
+
+        Copy over memory from the source area to the destination area. This
+        function will take overlap into consideration. So even if the source
+        area and destination area overlap, the function take care to copy over
+        the memory before it is overwritten. This will ensure that no data is
+        lost. This will however take longer than the standard pg_copy()
+        function, so in case the areas don't overlap, it is recommended to use
+        the copy function instead.
+
+    Parameters:
+
+        @dst: Pointer to the destination area to copy to
+        @src: Pointer to the source area to copy from
+        @num: The number of bytes to copy from the source to the destination
+        
+    Returns:
+        
+        This function will return a pointer to the destination area or NULL if
+        an error occurred.
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_compare(void *ptr1, void *ptr2, int num);
+
+    Description:
+
+        Compare the first num bytes starting from ptr1 to the first num bytes
+        starting from ptr2.
+
+    Parameters:
+
+        @ptr1: Pointer to the first memory area
+        @ptr2: Pointer to the second memory area
+        @num: The number of bytes to compare starting from the first and second
+              pointer
+
+    Returns:
+
+        This function will return 0 if both memory areas are equal. Otherwise
+        if the first byte that does not match is smaller in ptr1 than in ptr2 -1
+        will be returned. Otherwise if the byte is smaller in ptr2 than in ptr1
+        1 will be returned.
