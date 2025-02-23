@@ -27,9 +27,9 @@ enum pg_memory_mode {
 };
 
 struct pg_functions {
-        pg_func        alloc;
-        pg_func        realloc;
-        pg_func        free;
+        void *(alloc)(int);
+        void *(realloc)(void *, int);
+        void *(free)(void *);
 };
 
 enum pg_page_state {

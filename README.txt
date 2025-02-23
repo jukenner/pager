@@ -103,6 +103,7 @@ Including the library
         ...
         #define PG_IMPLEMENTATION
         #define PG_STANDARD_LIBRARY
+        #include "pager.h"
         ...
 
 API functions
@@ -178,7 +179,7 @@ API functions
 
     Returns:
 
-        The function return 0 on success or -1 if an error occurred
+        The function return 0 on success or -1 if an error occurred.
 
     Example(using custom wrapper for the default allocator functions):
 
@@ -205,3 +206,81 @@ API functions
         pg_init_custom(&hdl, func);
         ...
         
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void pg_shutdown(struct pg_handler *hdl)
+
+    Description:
+
+        Shutdown the memory manager and free all dynamically allocated memory.
+        If the manager has been initialized with a provided buffer, the provided
+        memory has to be freed manually by the user.
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_alloc(struct pg_handler *hdl, int size)
+
+    Description:
+
+        This function will create a memory block in the memory bank and mark the
+        corresponding pages as used. It then returns the pointer for this memory
+        block. If there are no more free pages left and the handler is
+        configured as dynamic, it will try to scale memory bank to meet the
+        demands of the user. If the bank is full and the handler is configured
+        as fixed, the function will just return NULL without affecting the
+        memory.
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+        @size: The number of bytes to allocate from the memory bank
+
+    Returns:
+        
+        The function will either return a pointer for the created memory block
+        or NULL if there are no more free pages or the scaling failed.
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void *pg_realloc(struct pg_handler *hdl, void *ptr, int size)
+
+    Description:
+
+        Scale an existing memory block to a bigger size. The function will first
+        try to attach the following pages to the memory block or if that is not
+        possible allocate an entirely new memory block and copy over the content
+        from the original pages. If there are no more free pages left and the
+        handler is configured as dynamic, the memory bank will scale to meet
+        demand. Otherwise if the handler is configured as fixed and no more
+        unused pages are left, the function will return NULL and do nothing to
+        the memory.
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+        @ptr: Pointer to the original memory block
+        @size: The size in bytes to scale the memory block to
+
+    Returns:
+
+        The function will either return a pointer for the updated memory block
+        or NULL if there are no more free pages or the scaling failed. 
+
+    -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+    >> void pg_free(struct pg_handler *hdl, void *ptr);
+
+    Description:
+
+        Release all pages in the memory block and mark them as unused so they
+        can be allocated again.
+
+    Parameters:
+
+        @hdl: Pointer to the memory handler struct
+        @ptr: Pointer to the memory block to free
+
