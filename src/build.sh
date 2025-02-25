@@ -8,4 +8,4 @@ else
     PYTHON=python
 fi
 
-$PYTHON pack.py --macro PG --pub pager.h --priv pager_memory.c
+$PYTHON pack.py --macro PG --pub pager.h --priv pager.c

@@ -1,11 +1,11 @@
                                       
                                      
-   __   _ __    __ _   __ _   ___  _ __ 
-   \ \ | '_ \  / _` | / _` | / _ \| '__|
-   /_/ | |_) || (_| || (_| ||  __/| |   
-       | .__/  \__,_| \__, | \___||_|   
-       | |             __/ |            
-       |_|            |___/             
+__   _ __    __ _   __ _   ___  _ __ 
+\ \ | '_ \  / _` | / _` | / _ \| '__|
+/_/ | |_) || (_| || (_| ||  __/| |   
+    | .__/  \__,_| \__, | \___||_|   
+    | |             __/ |            
+    |_|            |___/             
 
 
 Pager is a single-header memory manager supporting both static and dynamic
@@ -173,7 +173,7 @@ API functions
 
             - void *alloc(int size)
             - void *realloc(void *ptr, int size)
-            - void free(void *ptr)
+            - void  free(void *ptr)
 
         Both alloc and realloc should either return a pointer for the requested
         memory or NULL in case of failure.
@@ -205,16 +205,16 @@ API functions
         struct pg_handler hdl;
         struct pg_functions func;
 
-        func.alloc   = &cstm_alloc;
-        func.realloc = &cstm_realloc;
-        func.free    = &ctsm_free;
+        func.f_alloc   = &cstm_alloc;
+        func.f_realloc = &cstm_realloc;
+        func.f_free    = &ctsm_free;
 
         pg_init_custom(&hdl, func);
         ...
         
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-    >> void pg_shutdown(struct pg_handler *hdl)
+    >> void *pg_shutdown(struct pg_handler *hdl)
 
     Description:
 
@@ -225,6 +225,11 @@ API functions
     Parameters:
 
         @hdl: Pointer to the memory handler struct
+
+    Returns:
+
+        The function will return a pointer to the memory that has to be freed by
+        the user. If there is no more memory to free NULL will be returned.
 
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

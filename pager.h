@@ -21,9 +21,11 @@
 #define NULL ((void *)0)
 #endif
 
-typedef void *(*pg_func)(void *, int);
 
+#ifndef PG_PAGE_SIZE
 #define PG_PAGE_SIZE            512
+#endif
+
 #define PG_PAGE_MIN             8
 
 enum pg_memory_mode {
@@ -33,9 +35,9 @@ enum pg_memory_mode {
 };
 
 struct pg_functions {
-        pg_func        alloc;
-        pg_func        realloc;
-        pg_func        free;
+        void *(*alloc)(int);
+        void *(*realloc)(void *, int);
+        void  (*free)(void *);
 };
 
 enum pg_page_state {
@@ -53,6 +55,13 @@ struct pg_handler {
          *  DYNAMIC: Use the given functions to allocate more memory
          */
         enum pg_memory_mode     mode;
+
+        /*
+         * The original pointer for the provided memory when initializing the
+         * handler as fixed.
+         */
+        void                    *provided_pointer;
+        int                     provided_size;
 
         /*
          * The memory bank containing all requestable memory.
@@ -110,11 +119,11 @@ PG_API int pg_init_default(struct pg_handler *hdl);
  *
  * @hdl: Pointer to the memory handler
  * @buf: Pointer to the memory buffer to use
- * @buf_sz: The size of the provided buffer in bytes
+ * @size: The size of the provided buffer in bytes
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz);
+PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int size);
 
 /*
  * Initialize the memory manager using a set of custom functions for allocating,
@@ -132,8 +141,11 @@ PG_API int pg_init_custom(struct pg_handler *hdl, struct pg_functions fnc);
  * manager is configured as dynamic.
  *
  * @hdl: Pointer to the memory manager
+ *
+ * Returns: A pointer to the memory that has to be freed by the user. If there
+ *          is no more memory to free NULL will be returned.
  */
-PG_API void pg_close(struct pg_handler *hdl);
+PG_API void *pg_shutdown(struct pg_handler *hdl);
 
 
 PG_API void *pg_alloc(int size);
@@ -160,11 +172,10 @@ PG_API void pg_set(void *ptr, unsigned char b, int size);
 #ifdef PG_STANDARD_LIB
 
 /*
- * The default hdlory handling functions.
+ * The default memory handling functions.
  */
-PG_INTERN void *_pg_alloc(void *ptr, int size)
+PG_INTERN void *_pg_alloc(int size)
 {
-        PG_IGNORE(ptr);
         return malloc(size);
 }
 
@@ -173,10 +184,9 @@ PG_INTERN void *_pg_realloc(void *ptr, int size)
         return realloc(ptr, size);
 }
 
-PG_INTERN void *_pg_free(void *ptr, int size)
+PG_INTERN void _pg_free(void *ptr)
 {
         free(ptr);
-        return NULL;
 }
 
 PG_API int pg_init_default(struct pg_handler *hdl)
@@ -195,11 +205,11 @@ PG_API int pg_init_default(struct pg_handler *hdl)
         hdl->page_map_size = PG_CEILING(hdl->page_number, 4); 
 
         /* Allocate memory for the main buffer */
-        if(!(hdl->mem_bank = hdl->functions.alloc(NULL, hdl->mem_bank_size)))
+        if(!(hdl->mem_bank = hdl->functions.alloc(hdl->mem_bank_size)))
                 goto err_return;
 
         /* Allocate memory for the page map */
-        if(!(hdl->page_map = hdl->functions.alloc(NULL, hdl->page_map_size)))
+        if(!(hdl->page_map = hdl->functions.alloc(hdl->page_map_size)))
                 goto err_free_buffer;
 
         /* Clear the memory for the page map */
@@ -209,7 +219,7 @@ PG_API int pg_init_default(struct pg_handler *hdl)
         return 0;
 
 err_free_buffer:
-        hdl->functions.free(hdl->mem_bank, 0);
+        hdl->functions.free(hdl->mem_bank);
 
 err_return:
         return -1;
@@ -218,12 +228,35 @@ err_return:
 #endif /* PG_STANDARD_LIB */
 
 
-PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz)
+PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int size)
 {
+        int i;
+        int n = size / (PG_PAGE_SIZE + 0.25);
+
+        /*
+         * Check if the provided buffer is big enough to fit at least one page.
+         */
+        if(n < 1)
+                return -1;
+
         hdl->mode = PG_FIXED;
 
-        hdl->mem_bank = buf;
-        hdl->mem_bank_size = buf_sz;
+        hdl->provided_pointer = buf;
+        hdl->provided_size = size;
+                
+        hdl->page_number = n;
+        hdl->used_number = 0;
+
+        hdl->page_map_size = PG_CEILING(n, 4);
+        if(hdl->page_map_size < 1) hdl->page_map_size = 1;
+
+        hdl->page_map = buf;
+        hdl->mem_bank = (unsigned char *)buf + hdl->page_map_size;
+        hdl->mem_bank_size = hdl->page_number * PG_PAGE_SIZE;
+
+        /* Clear the memory for the page map */
+        for(i = 0; i < hdl->page_map_size; i++)
+                hdl->page_map[i] = 0;
 
         return 0;
 }
@@ -231,16 +264,47 @@ PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz)
 
 PG_API int pg_init_custom(struct pg_handler *hdl, struct pg_functions fnc)
 {
+        int i;
+
+        hdl->mode = PG_DYNAMIC;
+
+        hdl->functions = fnc;
+
+        hdl->page_number   = PG_PAGE_MIN;
+        hdl->mem_bank_size = hdl->page_number * PG_PAGE_SIZE;
+        hdl->used_number   = 0;
+        hdl->page_map_size = PG_CEILING(hdl->page_number, 4); 
+
+        /* Allocate memory for the main buffer */
+        if(!(hdl->mem_bank = hdl->functions.alloc(hdl->mem_bank_size)))
+                goto err_return;
+
+        /* Allocate memory for the page map */
+        if(!(hdl->page_map = hdl->functions.alloc(hdl->page_map_size)))
+                goto err_free_buffer;
+
+        /* Clear the memory for the page map */
+        for(i = 0; i < hdl->page_map_size; i++)
+                hdl->page_map[i] = 0;
+
+        return 0;
+
+err_free_buffer:
+        hdl->functions.free(hdl->mem_bank);
+
+err_return:
+        return -1;
 }
 
 
-PG_API void pg_close(struct pg_handler *hdl)
+PG_API void *pg_shutdown(struct pg_handler *hdl)
 {
         if(hdl->mode == PG_FIXED)
-                return;
+                return hdl->provided_pointer;
 
-        hdl->functions.free(hdl->page_map, 0);
-        hdl->functions.free(hdl->mem_bank, 0);
+        hdl->functions.free(hdl->page_map);
+        hdl->functions.free(hdl->mem_bank);
+        return NULL;
 }
 
 #endif /* PG_IMPLEMENTATION */

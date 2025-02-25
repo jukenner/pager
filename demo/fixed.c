@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #define PG_IMPLEMENTATION
-#define PG_STANDARD_LIB
 #include "../pager.h"
 
 void print_page_map(struct pg_handler *hdl)
@@ -30,7 +29,13 @@ int main(void)
 {
         struct pg_handler hdl;
 
-        pg_init_default(&hdl);
+        #define BUFFER_SIZE 513
+        unsigned char buffer[BUFFER_SIZE];
+
+        if(pg_init_fixed(&hdl, buffer, BUFFER_SIZE) < 0) {
+                printf("Failed to initialize PG\n");
+                return -1;
+        }
         
 
         printf("page_number:   %d\n", hdl.page_number);
@@ -41,7 +46,7 @@ int main(void)
         print_page_map(&hdl);
         printf("\n");
 
-        pg_close(&hdl);
+        pg_shutdown(&hdl);
 
         return 0;
 }

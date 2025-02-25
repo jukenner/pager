@@ -15,10 +15,22 @@
 #define NULL ((void *)0)
 #endif
 
-typedef void *(*pg_func)(void *, int);
 
+/*
+ * USER CONFIGURATION
+ *
+ * All the following predefine macros can be set by the user before including
+ * the pager.h header file.
+ */
+
+#ifndef PG_PAGE_SIZE
 #define PG_PAGE_SIZE            512
+#endif
+
+#ifndef PG_PAGE_MIN
 #define PG_PAGE_MIN             8
+#endif
+
 
 enum pg_memory_mode {
         PG_UNDEF,
@@ -27,9 +39,8 @@ enum pg_memory_mode {
 };
 
 struct pg_functions {
-        void *(alloc)(int);
-        void *(realloc)(void *, int);
-        void *(free)(void *);
+        void *(*alloc)(int);
+        void  (*free)(void *);
 };
 
 enum pg_page_state {
@@ -47,6 +58,13 @@ struct pg_handler {
          *  DYNAMIC: Use the given functions to allocate more memory
          */
         enum pg_memory_mode     mode;
+
+        /*
+         * The original pointer for the provided memory when initializing the
+         * handler as fixed.
+         */
+        void                    *provided_pointer;
+        int                     provided_size;
 
         /*
          * The memory bank containing all requestable memory.
@@ -104,11 +122,11 @@ PG_API int pg_init_default(struct pg_handler *hdl);
  *
  * @hdl: Pointer to the memory handler
  * @buf: Pointer to the memory buffer to use
- * @buf_sz: The size of the provided buffer in bytes
+ * @size: The size of the provided buffer in bytes
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int buf_sz);
+PG_API int pg_init_fixed(struct pg_handler *hdl, void *buf, int size);
 
 /*
  * Initialize the memory manager using a set of custom functions for allocating,
@@ -126,15 +144,17 @@ PG_API int pg_init_custom(struct pg_handler *hdl, struct pg_functions fnc);
  * manager is configured as dynamic.
  *
  * @hdl: Pointer to the memory manager
+ *
+ * Returns: A pointer to the memory that has to be freed by the user. If there
+ *          is no more memory to free NULL will be returned.
  */
-PG_API void pg_close(struct pg_handler *hdl);
+PG_API void *pg_shutdown(struct pg_handler *hdl);
 
 
-PG_API void *pg_alloc(int size);
 
-PG_API void *pg_realloc(void *ptr, int size);
+PG_API void *pg_alloc(struct pg_handler *hdl, int size);
 
-PG_API void pg_free(void *ptr);
+PG_API void pg_free(struct pg_handler *hdl, void *ptr);
 
 PG_API void pg_copy(void *dst, void *src, int size);
 
